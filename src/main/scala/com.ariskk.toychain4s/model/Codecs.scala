@@ -17,6 +17,12 @@ trait Codecs {
   implicit val blockEncoder: JsonEncoder[Block] = DeriveJsonEncoder.gen[Block]
   implicit val blockDecoder: JsonDecoder[Block] = DeriveJsonDecoder.gen[Block]
 
+  implicit val peerIdEncoder: JsonEncoder[Peer.Id] = JsonEncoder[String].contramap(_.value)
+  implicit val peerIdDecoder: JsonDecoder[Peer.Id] = JsonDecoder[String].map(Peer.Id.apply)
+
+  implicit val peerEncoder: JsonEncoder[Peer] = DeriveJsonEncoder.gen[Peer]
+  implicit val peerDecoder: JsonDecoder[Peer] = DeriveJsonDecoder.gen[Peer]
+
 }
 
 object Codecs extends Codecs
