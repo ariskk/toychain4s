@@ -82,4 +82,8 @@ object Client {
   def createBlock(command: BlockCommand) =
     post[BlockCommand, Block](Path.Blocks, command)
 
+  def getPeers = get[List[Peer]](Path.Peers)
+
+  def addPeer(p: Peer) = post[Peer, Peer](Path.Peers, p)
+
 }
