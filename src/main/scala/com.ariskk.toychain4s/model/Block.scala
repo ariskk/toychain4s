@@ -33,6 +33,19 @@ final case class Block(
   previousHash: HashString
 ) {
   lazy val isGenesis = previousHash == HashString.zero
+
+  def isValid(previous: Block) = {
+    val md = MessageDigest.getInstance("SHA-256")
+    val bytes = Byteable[String].bytes(data) ++
+      Byteable[HashString].bytes(previousHash) ++
+      Byteable[Long].bytes(timestamp) ++
+      Byteable[Index].bytes(index)
+
+    md.update(bytes)
+
+    previous.hash == previousHash &&
+    HashString.fromBytes(md.digest) == Right(hash)
+  }
 }
 
 object Block {

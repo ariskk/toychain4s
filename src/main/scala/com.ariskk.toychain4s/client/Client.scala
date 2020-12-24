@@ -14,27 +14,19 @@ import Codecs._
 
 object Client {
 
-  case class HostConfig(host: String, port: Int) {
-    lazy val hostString = s"$host:$port"
-  }
-  case class Deps(config: HostConfig, httpClient: SttpBackend[Task, ZioStreams with WebSockets])
-
-  object Deps {
-    def fromHostConfig(hc: HostConfig) = HttpClientZioBackend().map { be =>
-      Deps(hc, be)
-    }
-  }
+  type Deps = SttpBackend[Task, ZioStreams with WebSockets]
 
   case class ClientError(m: String, cause: Throwable) extends Exception(m, cause)
 
   type DispatchReq[R] = ZIO[Deps, ClientError, R]
 
   case class ClientRequest[T: JsonEncoder](
+    host: Host,
     path: Path,
     method: Method,
     body: Option[T] = None
   ) {
-    lazy val requestString = s"$method ${path.path}"
+    lazy val requestString = s"$method ${host.hostString} ${path.path}"
   }
 
   case class ServerResponse[R: JsonDecoder](
@@ -54,36 +46,41 @@ object Client {
       .map(r => ServerResponse[R](response.code, r))
       .mapError(e => ClientError("Failed to decode response", e))
 
-  def get[R: JsonDecoder](path: Path) =
+  def get[R: JsonDecoder](host: Host, path: Path) =
     ZIO.accessM { deps: Deps =>
       basicRequest
         .get(
-          uri"http://${deps.config.hostString}/${path.path}"
+          uri"http://${host.hostString}/${path.path}"
         )
-        .send(deps.httpClient)
+        .send(deps)
         .flatMap(processServerResponse[R](_))
     }
 
-  def post[T: JsonEncoder, R: JsonDecoder](path: Path, body: T) =
+  def post[T: JsonEncoder, R: JsonDecoder](host: Host, path: Path, body: T) =
     ZIO.accessM { deps: Deps =>
       basicRequest
         .body(JsonCodecs.encode(body))
         .post(
-          uri"http://${deps.config.hostString}/${path.path}"
+          uri"http://${host.hostString}/${path.path}"
         )
-        .send(deps.httpClient)
+        .send(deps)
         .flatMap(processServerResponse[R](_))
     }
 
-  // Block APIs
+  object ApiIo {
 
-  def getBlocks = get[List[Block]](Path.Blocks)
+    def createBlock(host: Host, command: BlockCommand) =
+      post[BlockCommand, Block](host, Path.Commands, command)
 
-  def createBlock(command: BlockCommand) =
-    post[BlockCommand, Block](Path.Blocks, command)
+    def replicateBlock(host: Host, block: Block) =
+      post[Block, Block](host, Path.Blocks, block)
 
-  def getPeers = get[List[Peer]](Path.Peers)
+    def getBlocks(host: Host) = get[List[Block]](host, Path.Blocks)
 
-  def addPeer(p: Peer) = post[Peer, Peer](Path.Peers, p)
+    def getPeers(host: Host) = get[List[Peer]](host, Path.Peers)
+
+    def addPeer(host: Host, p: Peer) = post[Peer, Peer](host, Path.Peers, p)
+
+  }
 
 }

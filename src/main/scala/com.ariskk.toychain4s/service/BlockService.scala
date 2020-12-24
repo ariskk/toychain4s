@@ -7,6 +7,7 @@ import zio._
 import com.ariskk.toychain4s.model._
 import Service.Result
 import Codecs._
+import com.ariskk.toychain4s.client.Client
 
 object BlockService {
 
@@ -60,6 +61,7 @@ object BlockService {
       )
       .mapError(e => InvalidBlockDataError("Failed to create Block", Option(e)))
     _ <- storeBlock(block)
+    _ <- replicateBlock(block)
   } yield block
 
   def fetchBlockchain: Result[List[Block]] = for {
@@ -69,4 +71,16 @@ object BlockService {
     blocks <- fetchBlocksByIndices(indices)
   } yield blocks
 
+  def replicateBlock(block: Block) = Result.fromPeers { case (peers, client) =>
+    ZIO.collectAllPar(
+      peers.map(p => Client.ApiIo.replicateBlock(p.host, block).provide(client))
+    )
+  }
+
+  def receiveBlock(block: Block) = for {
+    previousBlock <- fetchLatestBlock
+    _ <- ZIO.when(block.isValid(previousBlock))(
+      storeBlock(block)
+    )
+  } yield block
 }
