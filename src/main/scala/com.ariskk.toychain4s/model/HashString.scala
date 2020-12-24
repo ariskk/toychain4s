@@ -2,6 +2,8 @@ package com.ariskk.toychain4s.model
 
 import scala.util.Try
 
+import shapeless._
+
 import com.ariskk.toychain4s.utils.Byteable
 
 /** SHA-256 hash string */

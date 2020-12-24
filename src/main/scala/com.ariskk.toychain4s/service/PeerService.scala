@@ -7,11 +7,11 @@ import com.ariskk.toychain4s.model.Peer
 
 object PeerService {
 
-  def fetchPeers: Result[List[Peer]] = ZIO.accessM { deps: Dependencies =>
+  def fetchPeers: Result[List[Peer]] = ZIO.accessM { deps: Module =>
     deps.peers.get.map(_.toList)
   }
 
-  def addPeer(p: Peer): Result[Peer] = ZIO.accessM { deps: Dependencies =>
+  def addPeer(p: Peer): Result[Peer] = ZIO.accessM { deps: Module =>
     deps.peers.update(_ + p)
   }.map(_ => p)
 

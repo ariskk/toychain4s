@@ -40,11 +40,11 @@ trait Route {
       } yield bodyResponse(result)
     }
 
-  def handler: PartialFunction[Request, ZIO[Dependencies, HTTPError, Response]] = { request =>
+  def handler: PartialFunction[Request, ZIO[Module, HTTPError, Response]] = { request =>
     requestHandler(request).mapError {
-      case NotFoundError               => HTTPError.NotFound(request.uri.toString)
-      case InternalServerError(_, _)   => HTTPError.InternalServerError("Oh great", None)
-      case InvalidBlockDataError(m, _) => HTTPError.BadRequest(m)
+      case NotFoundError                 => HTTPError.NotFound(request.uri.toString)
+      case InternalServerError(m, cause) => HTTPError.InternalServerError(s"Oh great: $m", cause)
+      case InvalidBlockDataError(m, _)   => HTTPError.BadRequest(m)
     }
   }
 

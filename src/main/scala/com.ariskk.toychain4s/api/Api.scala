@@ -10,15 +10,17 @@ import com.ariskk.toychain4s.model.{ Block, BlockCommand, Peer }
 
 object Api extends Route {
 
-  private val Blocks = "/blocks"
-  private val Peers  = "/peers"
+  private val Commands = "/commands"
+  private val Blocks   = "/blocks"
+  private val Peers    = "/peers"
 
   def requestHandler: PartialFunction[Request, Result[Response]] = { request =>
     (request.method, request.uri.getPath) match {
-      case (GET, Blocks)  => BlockService.fetchBlockchain.map(bodyResponse(_))
-      case (POST, Blocks) => withBody[BlockCommand, Block](request)(BlockService.createNextBlock(_))
-      case (GET, Peers)   => PeerService.fetchPeers.map(bodyResponse(_))
-      case (POST, Peers)  => withBody[Peer, Peer](request)(PeerService.addPeer(_))
+      case (POST, Commands) => withBody[BlockCommand, Block](request)(BlockService.createNextBlock(_))
+      case (GET, Blocks)    => BlockService.fetchBlockchain.map(bodyResponse(_))
+      case (POST, Blocks)   => withBody[Block, Block](request)(BlockService.receiveBlock(_))
+      case (GET, Peers)     => PeerService.fetchPeers.map(bodyResponse(_))
+      case (POST, Peers)    => withBody[Peer, Peer](request)(PeerService.addPeer(_))
     }
   }
 
