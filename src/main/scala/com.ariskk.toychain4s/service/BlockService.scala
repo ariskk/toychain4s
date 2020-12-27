@@ -64,10 +64,20 @@ object BlockService {
     _ <- replicateBlock(block)
   } yield block
 
-  def fetchBlockchain: Result[List[Block]] = for {
-    lastHash <- fetchLatestBlockHash
-    last     <- fetchBlock(lastHash).flatMap(Result.fromOption)
-    indices = (last.index.value to 0L by -1).map(i => Index(i)).toList
+  def fetchBlockchain(page: Page): Result[List[Block]] = for {
+    fromBlock <- page.from
+      .fold(fetchLatestBlock)(cursor =>
+        for {
+          hash <- Result.fromEither(
+            HashString
+              .fromBytes(cursor.value.getBytes())
+              .left.map(e => InvalidBlockDataError("Invalid cursor", Some(e)))
+          )
+          r <- fetchBlock(hash).flatMap(Result.fromOption)
+        } yield r
+      )
+    toIndex = scala.math.max(fromBlock.index.value - page.size, 0L)
+    indices = (fromBlock.index.value to toIndex by -1).map(i => Index(i)).toList
     blocks <- fetchBlocksByIndices(indices)
   } yield blocks
 

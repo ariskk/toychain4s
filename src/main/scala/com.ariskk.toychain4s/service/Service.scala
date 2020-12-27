@@ -46,6 +46,12 @@ object Service {
     def fromOption[T](o: Option[T]): Result[T] =
       o.fold[Result[T]](ZIO.fail(NotFoundError))(ZIO.succeed(_))
 
+    def fromEither[T](e: Either[ServiceError, T]) = 
+      e.fold[Result[T]](ZIO.fail(_), ZIO.succeed(_))
+
+    def fromValue[T](value: T): Result[T] =
+      ZIO.succeed(value)
+
     def fromPeers[T](
       f: (Set[Peer], Http) => IO[Throwable, T]
     ): ZIO[Module, ServiceError, T] = ZIO.accessM { deps: Module =>

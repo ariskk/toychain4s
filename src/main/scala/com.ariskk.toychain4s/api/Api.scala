@@ -17,7 +17,7 @@ object Api extends Route {
   def requestHandler: PartialFunction[Request, Result[Response]] = { request =>
     (request.method, request.uri.getPath) match {
       case (POST, Commands) => withBody[BlockCommand, Block](request)(BlockService.createNextBlock(_))
-      case (GET, Blocks)    => BlockService.fetchBlockchain.map(bodyResponse(_))
+      case (GET, Blocks)    => withPage[Block](request)(BlockService.fetchBlockchain(_))
       case (POST, Blocks)   => withBody[Block, Block](request)(BlockService.receiveBlock(_))
       case (GET, Peers)     => PeerService.fetchPeers.map(bodyResponse(_))
       case (POST, Peers)    => withBody[Peer, Peer](request)(PeerService.addPeer(_))
