@@ -9,7 +9,7 @@ import shapeless.syntax.typeable._
 import com.ariskk.toychain4s.service.Service.Result
 import com.ariskk.toychain4s.utils.JsonCodecs
 import com.ariskk.toychain4s.service._
-import com.ariskk.toychain4s.model.{Index, Page, Cursor}
+import com.ariskk.toychain4s.model.{ Cursor, Index, Page }
 
 trait Route {
 
@@ -51,18 +51,17 @@ trait Route {
 
     val size = queryParts.find(_.contains("size")) match {
       case Some(s"size=$size") => size.cast[Int]
-      case _ => None
+      case _                   => None
     }
 
     val page = Page(from, size.getOrElse(10))
 
     f(page).map(bodyResponse(_))
   }
-    
 
   def handler: PartialFunction[Request, ZIO[Module, HTTPError, Response]] = { request =>
     requestHandler(request).mapError {
-      case NotFoundError             => HTTPError.NotFound(request.uri.toString)
+      case NotFoundError                 => HTTPError.NotFound(request.uri.toString)
       case InternalServerError(m, cause) => HTTPError.InternalServerError(s"Oh great: $m", cause)
       case InvalidBlockDataError(m, _)   => HTTPError.BadRequest(m)
     }

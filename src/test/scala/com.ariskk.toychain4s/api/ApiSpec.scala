@@ -12,7 +12,7 @@ import com.ariskk.toychain4s.client._
 object ApiSpec extends BaseApiSpec {
 
   private def buildSpec[T](peer: Peer, spec: ZIO[Client.Deps, Throwable, T]) = for {
-    module    <- createModule(peer.id, Set.empty)
+    module    <- createModule(peer, Set.empty)
     serverRef <- Ref.make(Option.empty[Server])
     _ <- createServer(peer.host, module)
       .tapM(server => serverRef.set(Some(server)))

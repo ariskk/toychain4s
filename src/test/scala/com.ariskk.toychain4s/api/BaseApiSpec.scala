@@ -26,7 +26,7 @@ trait BaseApiSpec extends DefaultRunnableSpec {
 
   private[api] def createClientDeps = HttpClientZioBackend()
 
-  private[api] def createModule(peer: Peer.Id, peers: Set[Peer]) = for {
+  private[api] def createModule(peer: Peer, peers: Set[Peer]) = for {
     rocks <- RocksDBIO
       .apply(s"/tmp/rocks-${UUID.randomUUID().toString.take(10)}", "DB")
     module <- Module.fromRocks(rocks, peer, peers)

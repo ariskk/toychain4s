@@ -17,7 +17,7 @@ object NetworkApiSpec extends BaseApiSpec {
     serverRef <- Ref.make(List.empty[Server])
     _ <- ZIO.collectAll(
       peers.map(peer =>
-        createModule(peer.id, peers - peer).flatMap(deps =>
+        createModule(peer, peers - peer).flatMap(deps =>
           createServer(peer.host, deps)
             .tapM(server => serverRef.update(_ :+ server))
             .useForever

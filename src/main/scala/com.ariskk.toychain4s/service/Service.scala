@@ -16,17 +16,17 @@ final case class Config(
 )
 
 final case class Module(
-  peerId: Peer.Id,
+  thisPeer: Peer,
   rocksDB: RocksDBIO,
   peers: Ref[Set[Peer]],
   client: SttpBackend[Task, ZioStreams with WebSockets]
 )
 
 object Module {
-  def fromRocks(rocksDB: RocksDBIO, peerId: Peer.Id, peers: Set[Peer]) = for {
+  def fromRocks(rocksDB: RocksDBIO, peer: Peer, peers: Set[Peer]) = for {
     peersRef   <- Ref.make[Set[Peer]](peers)
     httpClient <- HttpClientZioBackend()
-  } yield Module(peerId, rocksDB, peersRef, httpClient)
+  } yield Module(peer, rocksDB, peersRef, httpClient)
 
 }
 
@@ -46,11 +46,13 @@ object Service {
     def fromOption[T](o: Option[T]): Result[T] =
       o.fold[Result[T]](ZIO.fail(NotFoundError))(ZIO.succeed(_))
 
-    def fromEither[T](e: Either[ServiceError, T]) = 
+    def fromEither[T](e: Either[ServiceError, T]) =
       e.fold[Result[T]](ZIO.fail(_), ZIO.succeed(_))
 
     def fromValue[T](value: T): Result[T] =
       ZIO.succeed(value)
+
+    def unit: Result[Unit] = ZIO.succeed(())
 
     def fromPeers[T](
       f: (Set[Peer], Http) => IO[Throwable, T]

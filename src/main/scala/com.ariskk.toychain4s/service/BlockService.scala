@@ -71,7 +71,8 @@ object BlockService {
           hash <- Result.fromEither(
             HashString
               .fromBytes(cursor.value.getBytes())
-              .left.map(e => InvalidBlockDataError("Invalid cursor", Some(e)))
+              .left
+              .map(e => InvalidBlockDataError("Invalid cursor", Some(e)))
           )
           r <- fetchBlock(hash).flatMap(Result.fromOption)
         } yield r
@@ -81,16 +82,27 @@ object BlockService {
     blocks <- fetchBlocksByIndices(indices)
   } yield blocks
 
-  def replicateBlock(block: Block) = Result.fromPeers { case (peers, client) =>
-    ZIO.collectAllPar(
-      peers.map(p => Client.ApiIo.replicateBlock(p.host, block).provide(client))
-    )
+  def replicateBlock(block: Block) = ZIO.accessM { module: Module =>
+    val replication = BlockReplication(block, module.thisPeer)
+    module.peers.get.flatMap { peers =>
+      ZIO.collectAllPar(
+        peers.map(p => Client.ApiIo.replicateBlock(p.host, replication).provide(module.client))
+      )
+    }.mapError(e => InternalServerError("Network error occured while replicating", Option(e)))
   }
 
-  def receiveBlock(block: Block) = for {
-    previousBlock <- fetchLatestBlock
-    _ <- ZIO.when(block.isValid(previousBlock))(
-      storeBlock(block)
-    )
-  } yield block
+  /**
+   * Another node tries to replicate a block.
+   * If `block.previousHash` is equal to the last block's hash, append.
+   * If `previousHash` is not equal:
+   *  If the index
+   */
+  def receiveBlock(incoming: BlockReplication) = for {
+    latestBlock <- fetchLatestBlock
+    _ <-
+      if (incoming.block.isValid(latestBlock)) storeBlock(incoming.block)
+      else if (incoming.block.index == latestBlock.index) Result.unit
+      else Result.unit
+  } yield incoming.block
+
 }
