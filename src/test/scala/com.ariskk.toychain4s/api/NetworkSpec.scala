@@ -9,7 +9,7 @@ import uzhttp.server.Server
 import com.ariskk.toychain4s.model._
 import com.ariskk.toychain4s.client._
 
-object NetworkApiSpec extends BaseApiSpec {
+object NetworkSpec extends BaseApiSpec {
 
   def generatePeers(n: Int) = (1 to n).map(i => Peer.newPeer("127.0.0.1", 5555 + i)).toSet
 
@@ -30,6 +30,20 @@ object NetworkApiSpec extends BaseApiSpec {
     _      <- serverRef.get.map(_.map(_.shutdown()))
   } yield out
 
+  private def singleServer(peer: Peer, peers: Set[Peer]) = for {
+    newServerRef <- Ref.make(Option.empty[Server])
+    _ <- createModule(peer, peers).flatMap(deps =>
+      createServer(peer.host, deps)
+        .tapM(s => newServerRef.set(Option(s)))
+        .useForever
+        .forkDaemon
+    )
+    client <- createClientDeps
+    _ <- ZIO.when(peers.nonEmpty)(
+      Client.ApiIo.addPeer(peers.head.host, peer).provide(client)
+    )
+  } yield newServerRef
+
   def spec = suite("NetworkApiSpec")(
     testM("New Blocks should be replicated") {
 
@@ -49,7 +63,89 @@ object NetworkApiSpec extends BaseApiSpec {
       val spec = buildSpec(peers, program)
 
       assertM(spec)(equalTo())
+    },
+    testM("Adding a peer should propragate") {
+
+      val peers      = generatePeers(3)
+      def randomHost = peers.toList(scala.util.Random.nextInt(3)).host
+
+      val newPeer = Peer.newPeer("127.0.0.1", 5600)
+
+      lazy val program = for {
+        _ <- Client.ApiIo.addPeer(peers.head.host, newPeer)
+        _ <- Client.ApiIo.getPeers(peers.last.host).repeatUntil { r =>
+          r.response.contains(newPeer)
+        }
+      } yield ()
+
+      val spec = buildSpec(peers, program)
+
+      assertM(spec)(equalTo())
+
+    },
+    testM("Peers can come and go") {
+
+      def newPeer(port: Int) = Peer.newPeer("127.0.0.1", port)
+
+      lazy val program = for {
+        client <- createClientDeps
+        firstPeer = newPeer(5565)
+        firstPeerRef <- singleServer(firstPeer, Set.empty)
+        genesisChain <- Client.ApiIo
+          .getBlocks(firstPeer.host)
+          .provide(client)
+          .repeatUntil(_.response == List(Block.genesis))
+
+        secondPeer = newPeer(5566)
+        secondPeerRef <- singleServer(secondPeer, Set(firstPeer))
+
+        _ <- Client.ApiIo
+          .getPeers(firstPeer.host)
+          .provide(client)
+          .repeatUntil(_.response == List(secondPeer))
+
+        thirdPeer = newPeer(5567)
+        thidPeerRef <- singleServer(thirdPeer, Set(firstPeer, secondPeer))
+
+        // Gossip based protocol ensures secondPeer hears of thirdPeer
+        _ <- Client.ApiIo
+          .getPeers(secondPeer.host)
+          .provide(client)
+          .repeatUntil(_.response.toSet == Set(firstPeer, thirdPeer))
+
+        // Second block gets created
+        block2 <- commandFromBlock(thirdPeer.host, genesisChain.response.last, "block2").provide(client)
+        _      <- Client.ApiIo.getBlocks(firstPeer.host).provide(client).repeatUntil(_.response.size == 2)
+
+        // Two different blocks get created in parallel in different peers, leading to a chain split
+        List(block2a, block2b) <- ZIO.collectAllPar(
+          List(
+            commandFromBlock(thirdPeer.host, block2.response, "block2a"),
+            commandFromBlock(secondPeer.host, block2.response, "block2b")
+          ).map(_.provide(client))
+        )
+
+        _ <- Client.ApiIo.getBlocks(secondPeer.host).provide(client).repeatUntil(_.response.head.data == "block2b")
+        _ <- Client.ApiIo.getBlocks(thirdPeer.host).provide(client).repeatUntil(_.response.head.data == "block2a")
+
+        // Making the chain containing "block2a" longer should eliminate block2b
+        block3 <- commandFromBlock(thirdPeer.host, block2a.response, "block3").provide(client)
+
+        _ <- Client.ApiIo
+          .getBlocks(secondPeer.host)
+          .provide(client)
+          .repeatUntil(
+            _.response.map(_.data) == List("block3", "block2a", "block2", "Genesis Block")
+          )
+
+        _ <- firstPeerRef.get.map(_.map(_.shutdown()))
+        _ <- secondPeerRef.get.map(_.map(_.shutdown()))
+        _ <- thidPeerRef.get.map(_.map(_.shutdown()))
+      } yield ()
+
+      assertM(program)(equalTo())
+
     }
-  )
+  ) @@ TestAspect.sequential
 
 }

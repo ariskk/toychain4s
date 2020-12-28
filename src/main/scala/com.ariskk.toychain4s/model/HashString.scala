@@ -10,6 +10,12 @@ import com.ariskk.toychain4s.utils.Byteable
 final case class HashString private[model] (value: String) extends AnyVal
 
 object HashString {
+  def fromHex(hexString: String): Either[BlockError, HashString] =
+    if (hexString.size != 64) Left(InvalidHashError(s"Invalid hexString length: ${hexString.size}"))
+    else if (!hexString.forall(_.toString.matches("-?[0-9a-fA-F]+")))
+      Left(InvalidHashError(s"Invalid character detected"))
+    else Right(new HashString(hexString))
+
   def fromBytes(bytes: Array[Byte]): Either[BlockError, HashString] =
     if (bytes.size != 32) Left(InvalidHashError(s"Invalid HashString length: ${bytes.size}"))
     else {

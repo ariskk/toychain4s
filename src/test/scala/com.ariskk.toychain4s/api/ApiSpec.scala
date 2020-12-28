@@ -2,6 +2,7 @@ package com.ariskk.toychain4s.api
 
 import zio.test._
 import zio.test.Assertion._
+import zio.test.environment._
 import zio.{ Ref, ZIO }
 import uzhttp.server.Server
 import sttp.client3.httpclient.zio._
@@ -24,7 +25,7 @@ object ApiSpec extends BaseApiSpec {
   } yield out
 
   def spec = suite("ApiSpec")(
-    testM("Add peers as well as query for them") {
+    testM("Add peers") {
       val peer = Peer.newPeer("127.0.0.1", 5555 + scala.util.Random.nextInt(10))
       val host = peer.host
 
@@ -35,7 +36,7 @@ object ApiSpec extends BaseApiSpec {
         _ <- Client.ApiIo.getPeers(host).repeatUntil(_.response.toSet == peers.toSet)
       } yield ()
 
-      lazy val spec = buildSpec(peer, program)
+      lazy val spec = live(buildSpec(peer, program))
 
       assertM(spec)(equalTo())
     },
@@ -56,6 +57,6 @@ object ApiSpec extends BaseApiSpec {
       assertM(spec)(equalTo())
 
     }
-  )
+  ) @@ TestAspect.sequential
 
 }

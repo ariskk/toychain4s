@@ -2,6 +2,7 @@ package com.ariskk.toychain4s.api
 
 import zio._
 import zio.stream._
+import zio.clock.Clock
 import zio.json._
 import uzhttp.{ HTTPError, Request, Response, Status }
 import shapeless.syntax.typeable._
@@ -16,7 +17,7 @@ trait Route {
   def requestHandler: PartialFunction[Request, Result[Response]]
 
   def bodyResponse[T: JsonEncoder](t: T): Response = Response.const(
-    body = JsonCodecs.encode(t).getBytes(),
+    body = JsonCodecs.encode(t).getBytes("UTF-8"),
     contentType = "application/json",
     status = Status.Ok
   )
@@ -44,22 +45,18 @@ trait Route {
 
   def withPage[R: JsonEncoder](request: Request)(f: Page => Result[List[R]]): Result[Response] = {
     val queryParts = request.uri.getQuery.split("&")
-
     val from = queryParts.find(_.contains("from")).map { case s"from=$cursor" =>
       Cursor(cursor)
     }
-
-    val size = queryParts.find(_.contains("size")) match {
-      case Some(s"size=$size") => size.cast[Int]
-      case _                   => None
+    val size = queryParts.find(_.contains("size")).map { case s"size=$size" =>
+      size.toInt // todo .cast
     }
-
     val page = Page(from, size.getOrElse(10))
 
     f(page).map(bodyResponse(_))
   }
 
-  def handler: PartialFunction[Request, ZIO[Module, HTTPError, Response]] = { request =>
+  def handler: PartialFunction[Request, ZIO[Clock with Has[Module], HTTPError, Response]] = { request =>
     requestHandler(request).mapError {
       case NotFoundError                 => HTTPError.NotFound(request.uri.toString)
       case InternalServerError(m, cause) => HTTPError.InternalServerError(s"Oh great: $m", cause)

@@ -5,9 +5,7 @@ import scala.util.Try
 import com.ariskk.toychain4s.utils.Byteable
 
 final case class Index(value: Long) extends AnyVal {
-  def increament               = new Index(value + 1)
-  def >(other: Index): Boolean = value > other.value
-  def <(other: Index): Boolean = value < other.value
+  def increament = new Index(value + 1)
 }
 
 object Index {
