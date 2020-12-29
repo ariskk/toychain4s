@@ -1,11 +1,12 @@
 package com.ariskk.toychain4s.api
 
+import scala.util.Try
+
 import zio._
 import zio.stream._
 import zio.clock.Clock
 import zio.json._
 import uzhttp.{ HTTPError, Request, Response, Status }
-import shapeless.syntax.typeable._
 
 import com.ariskk.toychain4s.service.Service.Result
 import com.ariskk.toychain4s.utils.JsonCodecs
@@ -48,8 +49,8 @@ trait Route {
     val from = queryParts.find(_.contains("from")).map { case s"from=$cursor" =>
       Cursor(cursor)
     }
-    val size = queryParts.find(_.contains("size")).map { case s"size=$size" =>
-      size.toInt // todo .cast
+    val size = queryParts.find(_.contains("size")).flatMap { case s"size=$size" =>
+      Try(Integer.parseInt(size)).toOption
     }
     val page = Page(from, size.getOrElse(10))
 
