@@ -59,3 +59,8 @@ object Block {
     HashString.zero
   )
 }
+
+final case class BlockReplication(
+  block: Block,
+  sender: Peer
+)

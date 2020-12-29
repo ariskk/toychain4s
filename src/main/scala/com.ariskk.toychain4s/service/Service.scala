@@ -1,6 +1,7 @@
 package com.ariskk.toychain4s.service
 
-import zio.{ IO, Ref, Task, UIO, ZIO }
+import zio._
+import zio.clock.Clock
 import sttp.client3._
 import sttp.client3.httpclient.zio._
 import sttp.capabilities.zio.ZioStreams
@@ -15,41 +16,60 @@ final case class Config(
   dbName: String
 )
 
-final case class Module(
-  peerId: Peer.Id,
-  rocksDB: RocksDBIO,
-  peers: Ref[Set[Peer]],
-  client: SttpBackend[Task, ZioStreams with WebSockets]
-)
+trait Module {
+  def thisPeer: Peer
+  def rocksDB: RocksDBIO
+  def peers: Ref[Set[Peer]]
+  def client: SttpBackend[Task, ZioStreams with WebSockets]
+}
 
 object Module {
-  def fromRocks(rocksDB: RocksDBIO, peerId: Peer.Id, peers: Set[Peer]) = for {
+  def fromRocks(rocksDBIO: RocksDBIO, peer: Peer, peers: Set[Peer]) = for {
     peersRef   <- Ref.make[Set[Peer]](peers)
     httpClient <- HttpClientZioBackend()
-  } yield Module(peerId, rocksDB, peersRef, httpClient)
+  } yield new Module {
+    override val thisPeer: Peer                                        = peer
+    override val rocksDB: RocksDBIO                                    = rocksDBIO
+    override val peers: Ref[Set[Peer]]                                 = peersRef
+    override val client: SttpBackend[Task, ZioStreams with WebSockets] = httpClient
+  }
 
 }
 
 object Service {
-  type Result[T] = ZIO[Module, ServiceError, T]
+  type Result[T] = ZIO[Clock with Has[Module], ServiceError, T]
 
   type Http = SttpBackend[Task, ZioStreams with WebSockets]
 
   object Result {
 
+    def fromModule[T](
+      f: Module => IO[ServiceError, T]
+    ): Result[T] = ZIO.accessM { deps: Clock with Has[Module] =>
+      f(deps.get[Module])
+    }
+
     def fromRocksDB[T](
       f: RocksDBIO => IO[StorageException, T]
-    ): ZIO[Module, ServiceError, T] = ZIO.accessM { deps: Module =>
-      f(deps.rocksDB)
+    ): Result[T] = ZIO.accessM { deps: Clock with Has[Module] =>
+      f(deps.get[Module].rocksDB)
     }.mapError(e => InternalServerError("Storage Error Occured", Option(e)))
 
     def fromOption[T](o: Option[T]): Result[T] =
       o.fold[Result[T]](ZIO.fail(NotFoundError))(ZIO.succeed(_))
 
+    def fromEither[T](e: Either[ServiceError, T]) =
+      e.fold[Result[T]](ZIO.fail(_), ZIO.succeed(_))
+
+    def fromValue[T](value: T): Result[T] =
+      ZIO.succeed(value)
+
+    def unit: Result[Unit] = ZIO.succeed(())
+
     def fromPeers[T](
-      f: (Set[Peer], Http) => IO[Throwable, T]
-    ): ZIO[Module, ServiceError, T] = ZIO.accessM { deps: Module =>
-      deps.peers.get.flatMap(p => f(p, deps.client))
+      f: (Set[Peer], Http) => ZIO[Clock, Throwable, T]
+    ): Result[T] = ZIO.accessM { deps: Clock with Has[Module] =>
+      deps.get[Module].peers.get.flatMap(p => f(p, deps.get[Module].client))
     }.mapError(e => InternalServerError("Network Error Occured", Option(e)))
 
   }

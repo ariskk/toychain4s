@@ -46,12 +46,12 @@ object Client {
       .map(r => ServerResponse[R](response.code, r))
       .mapError(e => ClientError("Failed to decode response", e))
 
-  def get[R: JsonDecoder](host: Host, path: Path) =
+  def get[R: JsonDecoder](host: Host, path: Path, page: Option[Page]) =
     ZIO.accessM { deps: Deps =>
+      val pageParams = page.map(u => s"${u.toUrlParams}").getOrElse("")
+      val uri        = uri"http://${host.hostString}/${path.path}?$pageParams"
       basicRequest
-        .get(
-          uri"http://${host.hostString}/${path.path}"
-        )
+        .get(uri)
         .send(deps)
         .flatMap(processServerResponse[R](_))
     }
@@ -72,12 +72,13 @@ object Client {
     def createBlock(host: Host, command: BlockCommand) =
       post[BlockCommand, Block](host, Path.Commands, command)
 
-    def replicateBlock(host: Host, block: Block) =
-      post[Block, Block](host, Path.Blocks, block)
+    def replicateBlock(host: Host, block: BlockReplication) =
+      post[BlockReplication, Block](host, Path.Replications, block)
 
-    def getBlocks(host: Host) = get[List[Block]](host, Path.Blocks)
+    def getBlocks(host: Host, page: Option[Page] = Some(Page(None, 10))) =
+      get[List[Block]](host, Path.Chain, page)
 
-    def getPeers(host: Host) = get[List[Peer]](host, Path.Peers)
+    def getPeers(host: Host) = get[List[Peer]](host, Path.Peers, page = None)
 
     def addPeer(host: Host, p: Peer) = post[Peer, Peer](host, Path.Peers, p)
 

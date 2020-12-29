@@ -2,6 +2,7 @@ package com.ariskk.toychain4s.api
 
 import zio.test._
 import zio.test.Assertion._
+import zio.test.environment._
 import zio.{ Ref, ZIO }
 import uzhttp.server.Server
 import sttp.client3.httpclient.zio._
@@ -12,7 +13,7 @@ import com.ariskk.toychain4s.client._
 object ApiSpec extends BaseApiSpec {
 
   private def buildSpec[T](peer: Peer, spec: ZIO[Client.Deps, Throwable, T]) = for {
-    module    <- createModule(peer.id, Set.empty)
+    module    <- createModule(peer, Set.empty)
     serverRef <- Ref.make(Option.empty[Server])
     _ <- createServer(peer.host, module)
       .tapM(server => serverRef.set(Some(server)))
@@ -24,23 +25,23 @@ object ApiSpec extends BaseApiSpec {
   } yield out
 
   def spec = suite("ApiSpec")(
-    testM("Add peers as well as query for them") {
-      val peer = Peer.newPeer("127.0.0.1", 5555 + scala.util.Random.nextInt(10))
+    testM("Add peers") {
+      val peer = randomPeer
       val host = peer.host
 
       lazy val program = for {
         _ <- Client.ApiIo.getPeers(host).repeatUntil(_.response == List.empty[Peer])
-        peers = (1 to 5).map(i => Peer.newPeer("localhost", 1000 + i))
+        peers = (1 to 5).map(i => randomPeer)
         _ <- ZIO.collectAllPar(peers.map(p => Client.ApiIo.addPeer(host, p)))
         _ <- Client.ApiIo.getPeers(host).repeatUntil(_.response.toSet == peers.toSet)
       } yield ()
 
-      lazy val spec = buildSpec(peer, program)
+      lazy val spec = live(buildSpec(peer, program))
 
       assertM(spec)(equalTo())
     },
     testM("Create blocks and return a block chain") {
-      val peer = Peer.newPeer("127.0.0.1", 5555 + scala.util.Random.nextInt(10))
+      val peer = randomPeer
       val host = peer.host
 
       lazy val program = for {
@@ -56,6 +57,6 @@ object ApiSpec extends BaseApiSpec {
       assertM(spec)(equalTo())
 
     }
-  )
+  ) @@ TestAspect.sequential
 
 }
