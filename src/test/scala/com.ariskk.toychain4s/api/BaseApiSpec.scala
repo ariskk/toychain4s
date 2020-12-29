@@ -19,6 +19,9 @@ import com.ariskk.toychain4s.service.BlockService
 
 trait BaseApiSpec {
 
+  private[api] def randomPort = 5555 + scala.util.Random.nextInt(10000)
+  private[api] def randomPeer = Peer.newPeer("127.0.0.1", randomPort)
+
   private[api] def createClientDeps = HttpClientZioBackend()
 
   private[api] def createModule(peer: Peer, peers: Set[Peer]) = for {

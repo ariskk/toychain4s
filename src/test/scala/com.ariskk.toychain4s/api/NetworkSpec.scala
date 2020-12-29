@@ -1,5 +1,7 @@
 package com.ariskk.toychain4s.api
 
+import scala.util.Random
+
 import zio.test._
 import zio.test.Assertion._
 import zio.{ Ref, ZIO }
@@ -11,7 +13,7 @@ import com.ariskk.toychain4s.client._
 
 object NetworkSpec extends BaseApiSpec {
 
-  def generatePeers(n: Int) = (1 to n).map(i => Peer.newPeer("127.0.0.1", 5555 + i)).toSet
+  def generatePeers(n: Int) = (1 to n).map(_ => randomPeer).toSet
 
   private def buildSpec[T](peers: Set[Peer], spec: ZIO[Client.Deps, Throwable, T]) = for {
     serverRef <- Ref.make(List.empty[Server])
@@ -48,7 +50,7 @@ object NetworkSpec extends BaseApiSpec {
     testM("New Blocks should be replicated") {
 
       val peers      = generatePeers(3)
-      def randomHost = peers.toList(scala.util.Random.nextInt(3)).host
+      def randomHost = peers.toList(Random.nextInt(3)).host
 
       lazy val program = for {
         genesisChain <- Client.ApiIo.getBlocks(randomHost).repeatUntil(_.response == List(Block.genesis))
@@ -67,9 +69,9 @@ object NetworkSpec extends BaseApiSpec {
     testM("Adding a peer should propragate") {
 
       val peers      = generatePeers(3)
-      def randomHost = peers.toList(scala.util.Random.nextInt(3)).host
+      def randomHost = peers.toList(Random.nextInt(3)).host
 
-      val newPeer = Peer.newPeer("127.0.0.1", 5600)
+      val newPeer = randomPeer
 
       lazy val program = for {
         _ <- Client.ApiIo.addPeer(peers.head.host, newPeer)
@@ -83,20 +85,18 @@ object NetworkSpec extends BaseApiSpec {
       assertM(spec)(equalTo())
 
     },
-    testM("Peers can come and go") {
-
-      def newPeer(port: Int) = Peer.newPeer("127.0.0.1", port)
+    testM("Longest chain prevails") {
 
       lazy val program = for {
         client <- createClientDeps
-        firstPeer = newPeer(5565)
+        firstPeer = randomPeer
         firstPeerRef <- singleServer(firstPeer, Set.empty)
         genesisChain <- Client.ApiIo
           .getBlocks(firstPeer.host)
           .provide(client)
           .repeatUntil(_.response == List(Block.genesis))
 
-        secondPeer = newPeer(5566)
+        secondPeer = randomPeer
         secondPeerRef <- singleServer(secondPeer, Set(firstPeer))
 
         _ <- Client.ApiIo
@@ -104,7 +104,7 @@ object NetworkSpec extends BaseApiSpec {
           .provide(client)
           .repeatUntil(_.response == List(secondPeer))
 
-        thirdPeer = newPeer(5567)
+        thirdPeer = randomPeer
         thidPeerRef <- singleServer(thirdPeer, Set(firstPeer, secondPeer))
 
         // Gossip based protocol ensures secondPeer hears of thirdPeer

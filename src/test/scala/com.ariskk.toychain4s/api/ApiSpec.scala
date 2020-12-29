@@ -26,12 +26,12 @@ object ApiSpec extends BaseApiSpec {
 
   def spec = suite("ApiSpec")(
     testM("Add peers") {
-      val peer = Peer.newPeer("127.0.0.1", 5555 + scala.util.Random.nextInt(10))
+      val peer = randomPeer
       val host = peer.host
 
       lazy val program = for {
         _ <- Client.ApiIo.getPeers(host).repeatUntil(_.response == List.empty[Peer])
-        peers = (1 to 5).map(i => Peer.newPeer("localhost", 1000 + i))
+        peers = (1 to 5).map(i => randomPeer)
         _ <- ZIO.collectAllPar(peers.map(p => Client.ApiIo.addPeer(host, p)))
         _ <- Client.ApiIo.getPeers(host).repeatUntil(_.response.toSet == peers.toSet)
       } yield ()
@@ -41,7 +41,7 @@ object ApiSpec extends BaseApiSpec {
       assertM(spec)(equalTo())
     },
     testM("Create blocks and return a block chain") {
-      val peer = Peer.newPeer("127.0.0.1", 5555 + scala.util.Random.nextInt(10))
+      val peer = randomPeer
       val host = peer.host
 
       lazy val program = for {
