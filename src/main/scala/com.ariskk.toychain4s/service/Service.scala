@@ -8,7 +8,7 @@ import sttp.capabilities.zio.ZioStreams
 import sttp.capabilities.WebSockets
 
 import com.ariskk.toychain4s.io._
-import com.ariskk.toychain4s.model.{ Block, Peer }
+import com.ariskk.toychain4s.model.{ Block, BlockCommand, Peer }
 import com.ariskk.toychain4s.client.Client.ClientError
 
 final case class Config(
@@ -21,17 +21,20 @@ trait Module {
   def rocksDB: RocksDBIO
   def peers: Ref[Set[Peer]]
   def client: SttpBackend[Task, ZioStreams with WebSockets]
+  def commandQueue: Queue[BlockCommand]
 }
 
 object Module {
   def fromRocks(rocksDBIO: RocksDBIO, peer: Peer, peers: Set[Peer]) = for {
     peersRef   <- Ref.make[Set[Peer]](peers)
     httpClient <- HttpClientZioBackend()
+    queue      <- Queue.unbounded[BlockCommand]
   } yield new Module {
     override val thisPeer: Peer                                        = peer
     override val rocksDB: RocksDBIO                                    = rocksDBIO
     override val peers: Ref[Set[Peer]]                                 = peersRef
     override val client: SttpBackend[Task, ZioStreams with WebSockets] = httpClient
+    override val commandQueue: Queue[BlockCommand]                     = queue
   }
 
 }
@@ -70,6 +73,12 @@ object Service {
       f: (Set[Peer], Http) => ZIO[Clock, Throwable, T]
     ): Result[T] = ZIO.accessM { deps: Clock with Has[Module] =>
       deps.get[Module].peers.get.flatMap(p => f(p, deps.get[Module].client))
+    }.mapError(e => InternalServerError("Network Error Occured", Option(e)))
+
+    def fromCommandQueue[T](
+      f: Queue[BlockCommand] => ZIO[Clock, Throwable, T]
+    ): Result[T] = ZIO.accessM { deps: Clock with Has[Module] =>
+      f(deps.get[Module].commandQueue)
     }.mapError(e => InternalServerError("Network Error Occured", Option(e)))
 
   }

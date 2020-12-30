@@ -13,6 +13,9 @@ trait LowPriorityByteables {
   implicit val forInt = new Byteable[Int] {
     def bytes(t: Int): Array[Byte] = BigInt(t).toByteArray
   }
+  implicit val forBigInt = new Byteable[BigInt] {
+    def bytes(t: BigInt): Array[Byte] = t.toByteArray
+  }
   implicit val forString = new Byteable[String] {
     def bytes(s: String): Array[Byte] = s.getBytes
   }
