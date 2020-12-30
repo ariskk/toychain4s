@@ -37,6 +37,9 @@ final case class Block(
 }
 
 object Block {
+  val generationInterval = 2000 // millis
+  val adjustEvery        = 10   // blocks
+
   val genesisTime = 1608109027
 
   val genesis = Block(

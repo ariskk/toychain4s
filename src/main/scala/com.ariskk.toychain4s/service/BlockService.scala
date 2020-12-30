@@ -39,6 +39,15 @@ object BlockService {
     }
   } yield blocks
 
+  private[service] def getTotalChainDifficulty: Result[BigInt] = for {
+    lastIndex <- fetchLatestBlock.map(_.index)
+    total <- ZIO.foldLeft((0L to lastIndex.value))(BigInt(0)) { case (acc, index) =>
+      fetchBlocksByIndices(List(Index(index))).map { rs =>
+        acc + BigInt(rs.headOption.map(_.difficulty.value).getOrElse(0))
+      }
+    }
+  } yield total
+
   /**
    * Stores the block using its hash as its key.
    * Also stores its hash in its index to allow for
@@ -51,14 +60,18 @@ object BlockService {
       rocks.putKey(LatestBlockHash, block.hash)
   }
 
+  private[toychain4s] def computeDifficulty: Result[Difficulty] =
+    Result.fromValue(Difficulty(12))
+
   def createNextBlock(command: BlockCommand): Result[Block] = for {
     previousBlock <- fetchLatestBlock
     _ <- ZIO.when(previousBlock.hash != command.previousHash)(
       ZIO.fail(InvalidBlockDataError("Invalid previous block hash", None))
     )
     index = previousBlock.index.increament
+    difficulty <- computeDifficulty
     block <- ProofOfWorkService
-      .mineBlock(command, Difficulty(12), index)
+      .mineBlock(command, difficulty, index)
       .mapError(_ => InvalidBlockDataError("Failed to generate block", None))
     _ <- storeBlock(block)
     _ <- replicateBlock(block)
