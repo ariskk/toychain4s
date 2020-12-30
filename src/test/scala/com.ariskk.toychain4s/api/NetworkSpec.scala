@@ -5,6 +5,7 @@ import scala.util.Random
 import zio.test._
 import zio.test.Assertion._
 import zio.{ Ref, ZIO }
+import zio.duration._
 import sttp.client3.httpclient.zio._
 import uzhttp.server.Server
 
@@ -120,13 +121,13 @@ object NetworkSpec extends BaseApiSpec {
         // Two different blocks get created in parallel in different peers, leading to a chain split
         List(block2a, block2b) <- ZIO.collectAllPar(
           List(
-            commandFromBlock(thirdPeer.host, block2.response, "block2a"),
-            commandFromBlock(secondPeer.host, block2.response, "block2b")
+            commandFromBlock(thirdPeer.host, block2.response, "block2-a"),
+            commandFromBlock(secondPeer.host, block2.response, "block2-b")
           ).map(_.provide(client))
         )
 
-        _ <- Client.ApiIo.getBlocks(secondPeer.host).provide(client).repeatUntil(_.response.head.data == "block2b")
-        _ <- Client.ApiIo.getBlocks(thirdPeer.host).provide(client).repeatUntil(_.response.head.data == "block2a")
+        _ <- Client.ApiIo.getBlocks(secondPeer.host).provide(client).repeatUntil(_.response.head.data == "block2-b")
+        _ <- Client.ApiIo.getBlocks(thirdPeer.host).provide(client).repeatUntil(_.response.head.data == "block2-a")
 
         // Making the chain containing "block2a" longer should eliminate block2b
         block3 <- commandFromBlock(thirdPeer.host, block2a.response, "block3").provide(client)
@@ -135,7 +136,7 @@ object NetworkSpec extends BaseApiSpec {
           .getBlocks(secondPeer.host)
           .provide(client)
           .repeatUntil(
-            _.response.map(_.data) == List("block3", "block2a", "block2", "Genesis Block")
+            _.response.map(_.data) == List("block3", "block2-a", "block2", "Genesis Block")
           )
 
         _ <- firstPeerRef.get.map(_.map(_.shutdown()))

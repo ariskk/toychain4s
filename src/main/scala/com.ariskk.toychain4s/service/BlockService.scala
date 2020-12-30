@@ -56,12 +56,10 @@ object BlockService {
     _ <- ZIO.when(previousBlock.hash != command.previousHash)(
       ZIO.fail(InvalidBlockDataError("Invalid previous block hash", None))
     )
-    time = System.currentTimeMillis
-    block <- ZIO
-      .fromEither(
-        command.toBlock(previousBlock.index.increament, time)
-      )
-      .mapError(e => InvalidBlockDataError("Failed to create Block", Option(e)))
+    index = previousBlock.index.increament
+    block <- ProofOfWorkService
+      .mineBlock(command, Difficulty(12), index)
+      .mapError(_ => InvalidBlockDataError("Failed to generate block", None))
     _ <- storeBlock(block)
     _ <- replicateBlock(block)
   } yield block

@@ -6,6 +6,12 @@ trait Codecs {
   implicit val indexEncoder: JsonEncoder[Index] = JsonEncoder[Long].contramap(_.value)
   implicit val indexDecoder: JsonDecoder[Index] = JsonDecoder[Long].map(Index.apply)
 
+  implicit val diffEncoder: JsonEncoder[Difficulty] = JsonEncoder[Int].contramap(_.value)
+  implicit val diffDecoder: JsonDecoder[Difficulty] = JsonDecoder[Int].map(Difficulty.apply)
+
+  implicit val nonceEncoder: JsonEncoder[Nonce] = JsonEncoder[String].contramap(_.value.toString)
+  implicit val nonceDecoder: JsonDecoder[Nonce] = JsonDecoder[String].map(x => Nonce(BigInt(x)))
+
   implicit val hashStringEncoder: JsonEncoder[HashString] = JsonEncoder[String].contramap(_.value)
   implicit val hashStringDecoder: JsonDecoder[HashString] = JsonDecoder[String].map(HashString.apply)
 

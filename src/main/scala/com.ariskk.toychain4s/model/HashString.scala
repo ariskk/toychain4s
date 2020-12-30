@@ -31,8 +31,8 @@ object HashString {
   }
 
   /** Previous hash of the genesis block */
-  private[model] val zero = new HashString("0")
+  val zero = new HashString("0")
 
   /** Genesis hash */
-  private[model] val genesis = new HashString("059180280dbd5dad46ee80bf93c85369646c0180c5ac957288561fae40c26910")
+  val genesis = new HashString("000dc7b57091fd0fc09260694da65878722a7af494637581ff9920da2e220e4a")
 }
